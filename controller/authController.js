@@ -15,6 +15,7 @@ const generateOTP = () => {
 };
 
 const sendOTP = async (email, data,subjet) => {
+  
   const transporter = nodemailer.createTransport({
     service: "Gmail",
     host: "smtp.gmail.com",
@@ -25,8 +26,7 @@ const sendOTP = async (email, data,subjet) => {
       pass: process.env.NODEMAIL_PASSWORD,
     },
   });
-
-  await transporter.sendMail({
+ await transporter.sendMail({
     from: "hazrathali128@gmail.com",
     to: email,
     subject: subjet,
@@ -88,6 +88,11 @@ export const twoStepVerification = async (req, res) => {
 export const register = async (req, res) => {
   try {
     const { name, email, password } = req.body;
+
+    const user = await User.findOne({email})
+    if (user){
+      return res.json({message:'user is already present with this email'})
+    }
     const hashPassword = await bcrypt.hash(password, 8);
     const newUser = new User({ name, email, password: hashPassword });
     const otp = generateOTP();
@@ -117,6 +122,14 @@ export const login = async (req, res) => {
       }
       const isPasswordValid =  bcrypt.compare(password, user.password);
       if (!isPasswordValid) {
+      }
+
+      if(user.twofa != true){
+    const token = generateJwt(user._id);
+        return res.json({
+          message:"user login successfull",
+          token
+        })
       }
       const otp = generateOTP();
       const subjet = "OTP Verification ✔"
@@ -219,5 +232,69 @@ export const resetPassword = async (req, res) => {
   } catch (error) {
     console.error(error);
     return res.status(500).json({ message: "Internal Server Error" });
+  }
+};
+
+export const protectedApi = (req,res)=>{
+try {
+  res.json({
+    message:'protected api'
+  })
+} catch (error) {
+  res.json(error)
+}
+}
+
+
+
+export const resendverifyotp = async (req,res)=>{
+  try {
+    const {email} = req.body;
+    if (!email){
+      return res.json({message:'enter the email'})
+    }
+    const user = await User.findOne({email})
+
+    if (!user ){
+      return res.json({message:'user is not present with this email'})
+    }
+
+    const otp = generateOTP();
+    const subjet = "OTP Verification ✔"
+    await sendOTP(email, otp,subjet);
+
+    user.otp = otp;
+    user.otpExpiresAt = new Date(Date.now() + 10 * 60 * 1000);
+    await user.save()
+
+    return res.json({
+      message:'opt send successfully'
+    })
+  } catch (error) {
+    res.json(error)
+  }
+}
+
+
+
+export const switchtwofa = async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id); 
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    let status = user.twofa;
+    status = !status; 
+
+    user.twofa = status;
+    await user.save();
+
+    return res.json({
+      message: `Two-factor authentication is ${status ? 'enabled' : 'disabled'}`,
+    });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ message: 'Internal Server Error' });
   }
 };

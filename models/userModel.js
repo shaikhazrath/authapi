@@ -9,7 +9,6 @@ const userSchema = new mongoose.Schema({
     email: {
         type: String,
         required: true,
-        unique: true,
         validate: {
             validator: validator.isEmail,
             message: '{VALUE} is not a valid email'
@@ -44,7 +43,12 @@ const userSchema = new mongoose.Schema({
     resetTokenExpiresAt: {
         type: Date,
         default: null
-    }
+    },
+    twofa: {
+        type: Boolean,
+        default: false
+    },
+
 });
 
 const User = mongoose.model('User', userSchema);
